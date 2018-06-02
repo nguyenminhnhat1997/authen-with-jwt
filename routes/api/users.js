@@ -2,7 +2,10 @@ var express = require("express");
 var mongoose = require("mongoose");
 var gravatar = require("gravatar");
 var bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const passport = require("passport");
 var db = require("../../config/keys").mongoURI;
+const keySerect = require("../../config/keys").serectKey;
 mongoose
   .connect(db)
   .then(() => console.log("Kết nối thành công với database"))
@@ -60,12 +63,37 @@ router.post("/login", (req, res) => {
       res.status(404).json({ msg: "Email không đúng" });
     } else {
       var hash = user.password;
-      bcrypt.compare(password, hash, function(err, value) {
+      bcrypt.compare(password, hash, function(err, isMatch) {
         if (err) throw err;
-        console.log(value);
-        res.json({ msg: "Thành công !" });
+        if (isMatch) {
+          //Tạo JWT
+          //Tạo JWt Playload
+          var playload = { id: user.id, name: user.name, avatar: user.avatar };
+          // use JWT
+          jwt.sign(playload, keySerect, { expiresIn: 3600 }, (err, token) => {
+            if (err) throw err;
+            res.json({
+              success: true,
+              token: "Bearer " + token
+            });
+          });
+        } else {
+          res.json({ msg: "Password không đúng" });
+        }
       });
     }
   });
 });
+
+//@route   GET /api/users/current
+//@desc    in ra thông tin của user khi đăng nhập
+//@access  Private
+//@ api này có phân quyền passport.authenticate('jwt', {session: false})
+router.get(
+  "/current",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    res.json(req.user);
+  }
+);
 module.exports = router;
